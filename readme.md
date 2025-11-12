@@ -13,6 +13,7 @@ Notes available at: https://mathmarecol.github.io/RWorkshop/UTas_day2_linearMode
 ### Patterns
 
 The Patterns folder contains prompts. All prompts were run with VSCode and Github Copilot in an appropriate mode. 
+Read these before use. You may need to update data references or instructions depending on your use case. 
 
 
 ### Project Structure

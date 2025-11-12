@@ -60,3 +60,4 @@ summary(m5)
 m5 <- step(m1)
 summary(m5)
 
+
