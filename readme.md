@@ -21,6 +21,7 @@ For example, to use with Github Copilot in VSCode:
 
 Common issue is that the Agent is unable to properly render quarto documents with terminal command. The agent may get stuck in a loop trying to make the quarto render. Make sure you have the quarto extension installed in VSCode. its also recommended to keep the .qmd in the root directory because then it syncs with data files more easily. If you have issues, just render it manually rather than accepting the Agent's suggestion to run terminal code to render. 
 
+For more help with AI assistants [see my free online guide](https://www.seascapemodels.org/AI-assistants-for-scientific-coding/)
 
 ## Directories and files
 
