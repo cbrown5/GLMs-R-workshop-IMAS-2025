@@ -1,0 +1,447 @@
+# Choosing a generalized linear model with R
+
+---
+title: "GLM Analysis of Grass Species Data"
+format: html
+code-fold: show
+---
+
+This document works through building a generalized linear model (GLM) in R using experimental plant ecology data examining grass species response to soil conditions.
+
+## Setup
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(DHARMa)
+library(MASS)
+
+# Set ggplot theme
+theme_set(theme_classic())
+```
+
+## Data 
+
+We'll analyze an experimental plant ecology dataset examining grass species response to soil conditions with 3 variables and 90 observations:
+
+- **pH** (categorical): Soil acidity level (low, mid, high) - experimental treatment
+- **Biomass** (numeric): Plant biomass measurement (likely dry weight in grams)
+- **Species** (integer): Number of grass species present in experimental plot
+
+## Step 1: Examine Data
+
+Let's read in the data and examine its structure:
+
+```{r data-load}
+dat <- read_csv("Data/grasses.csv")
+```
+
+### Data Structure and Summary
+
+```{r data-summary}
+# Basic structure
+str(dat)
+
+# Dimensions
+cat("Dataset dimensions:", nrow(dat), "rows,", ncol(dat), "columns\n\n")
+
+# Summary of each variable
+for(var in names(dat)) {
+  cat("Variable:", var, "\n")
+  cat("Class:", class(dat[[var]]), "\n")
+  
+  if(is.numeric(dat[[var]])) {
+    cat("Type: Numeric values\n")
+    cat("Range:", min(dat[[var]], na.rm = TRUE), "to", max(dat[[var]], na.rm = TRUE), "\n")
+    cat("Quantiles:\n")
+    print(quantile(dat[[var]], na.rm = TRUE))
+    
+    # Determine numeric type
+    if(all(dat[[var]] >= 0, na.rm = TRUE)) {
+      if(all(dat[[var]] %% 1 == 0, na.rm = TRUE)) {
+        cat("Data type: Positive integers (>= 0)\n")
+      } else {
+        cat("Data type: Continuous values >= 0\n")
+      }
+    } else {
+      cat("Data type: Continuous values (positive and negative)\n")
+    }
+  } else {
+    cat("Type: Categorical\n")
+    freq_table <- table(dat[[var]], useNA = "always")
+    cat("Frequency table:\n")
+    print(freq_table)
+    
+    # Determine categorical type
+    n_levels <- length(unique(dat[[var]][!is.na(dat[[var]])]))
+    if(n_levels == 2) {
+      cat("Data type: Categorical, two factors\n")
+    } else {
+      cat("Data type: Categorical, multiple factors (", n_levels, "levels)\n")
+    }
+  }
+  cat("\n")
+}
+```
+
+### Data Visualization
+
+```{r data-viz, fig.width=10, fig.height=6}
+# Create visualizations for each variable
+p1 <- ggplot(dat, aes(x = pH)) +
+  geom_bar(fill = "steelblue", alpha = 0.7) +
+  labs(title = "Distribution of pH levels", x = "pH Level", y = "Count")
+
+p2 <- ggplot(dat, aes(x = Biomass)) +
+  geom_histogram(bins = 20, fill = "forestgreen", alpha = 0.7) +
+  labs(title = "Distribution of Biomass", x = "Biomass", y = "Count")
+
+p3 <- ggplot(dat, aes(x = Species)) +
+  geom_histogram(bins = max(dat$Species) - min(dat$Species) + 1, 
+                 fill = "orange", alpha = 0.7) +
+  labs(title = "Distribution of Species Count", x = "Number of Species", y = "Count")
+
+# Relationship plots
+p4 <- ggplot(dat, aes(x = pH, y = Species)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.6) +
+  labs(title = "Species count by pH level", x = "pH Level", y = "Number of Species")
+
+library(patchwork)
+(p1 | p2) / (p3 | p4)
+```
+
+## CHECKPOINT 1 ✓
+
+**Data Interpretation Confirmed:**
+
+1. **pH**: Categorical variable with multiple factors (low, mid, high) - experimental treatment
+2. **Biomass**: Continuous numeric values (>= 0, representing dry weight in grams)  
+3. **Species**: Positive integers >= 0 (count data representing number of grass species)
+
+---
+
+## Step 2: Build Model Formula
+
+Now we need to determine the structure of our GLM by identifying the response and predictor variables.
+
+### Response Variable Selection
+
+Looking at our experimental design, we have an ecology experiment examining grass species response to soil conditions. The logical response variable would be **Species** (the count of grass species present), as this represents the biological outcome we're trying to understand.
+
+### Predictor Variable Selection
+
+Available predictor variables:
+- **pH**: Experimental treatment (soil acidity level)
+- **Biomass**: Plant biomass measurement
+
+### Theoretical Justification for Predictors
+
+```{r model-reasoning}
+# Let's examine the relationships between variables
+cat("Correlation between Biomass and Species:\n")
+cor.test(dat$Biomass, dat$Species)
+
+# Examine means by pH level
+cat("\nSpecies count by pH level:\n")
+dat %>% 
+  group_by(pH) %>% 
+  summarise(
+    n = n(),
+    mean_species = mean(Species),
+    sd_species = sd(Species),
+    mean_biomass = mean(Biomass),
+    sd_biomass = sd(Biomass)
+  ) %>%
+  knitr::kable(digits = 2)
+```
+
+### Additional Exploratory Plots
+
+```{r relationship-plots, fig.width=10, fig.height=6}
+# Explore relationships between all variables
+p1 <- ggplot(dat, aes(x = Biomass, y = Species)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(title = "Species vs Biomass", x = "Biomass", y = "Species Count")
+
+p2 <- ggplot(dat, aes(x = Biomass, y = Species, color = pH)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Species vs Biomass by pH", x = "Biomass", y = "Species Count")
+
+p3 <- ggplot(dat, aes(x = pH, y = Biomass)) +
+  geom_boxplot(fill = "lightgreen", alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.6) +
+  labs(title = "Biomass by pH level", x = "pH Level", y = "Biomass")
+
+library(patchwork)
+p1 / (p2 | p3)
+```
+
+## CHECKPOINT 2 ✓
+
+**Model Formula Confirmed:**
+
+**Response variable:** `Species` (count of grass species)
+
+**Model formula:** `Species ~ pH * Biomass`
+
+This interaction model will test:
+- Main effect of pH on species count
+- Main effect of Biomass on species count  
+- Whether the effect of Biomass differs across pH levels
+
+---
+
+## Step 3: Choose Model Family
+
+Now we need to select the appropriate probability distribution (family) for our GLM based on the nature of our response variable.
+
+### Response Variable Analysis
+
+Our response variable `Species` is:
+- **Count data**: Positive integers (1, 2, 3, ..., 9)
+- **Discrete**: Cannot take fractional values
+- **Lower bounded**: Cannot be negative (≥ 0, though our data shows ≥ 1)
+- **No obvious upper limit**: Could theoretically be any positive integer
+
+### Model Family Selection
+
+```{r family-analysis}
+# Examine the distribution properties of Species
+cat("Species count distribution:\n")
+table(dat$Species)
+
+cat("\nBasic statistics:\n")
+cat("Mean:", mean(dat$Species), "\n")
+cat("Variance:", var(dat$Species), "\n")
+cat("Variance/Mean ratio:", var(dat$Species)/mean(dat$Species), "\n")
+
+# Check for overdispersion
+variance_mean_ratio <- var(dat$Species)/mean(dat$Species)
+if(variance_mean_ratio > 1.5) {
+  cat("Variance > Mean: Suggests overdispersion (negative binomial may be appropriate)\n")
+} else if(variance_mean_ratio < 0.8) {
+  cat("Variance < Mean: Suggests underdispersion\n") 
+} else {
+  cat("Variance ≈ Mean: Poisson distribution may be appropriate\n")
+}
+
+# Visualize distribution
+hist(dat$Species, breaks = seq(0.5, max(dat$Species) + 0.5, 1), 
+     main = "Distribution of Species Count", 
+     xlab = "Number of Species", 
+     col = "lightblue", 
+     border = "black")
+```
+
+### Family Decision Reasoning
+
+Based on our analysis:
+
+1. **Data type**: Count data (positive integers) → rules out Gaussian and Gamma families
+
+2. **Distribution characteristics**: 
+   - If Variance ≈ Mean → **Poisson** family appropriate
+   - If Variance > Mean (overdispersion) → **Negative Binomial** family appropriate
+   - If Variance < Mean (underdispersion) → May need zero-inflated or other specialized models
+
+3. **Default choice for count data**: Start with **Negative Binomial** family as it:
+   - Handles overdispersion naturally
+   - Reduces to Poisson when dispersion parameter = 0
+   - More robust for ecological count data
+
+## CHECKPOINT 3 ✓
+
+**Model Family Confirmed:** **Negative Binomial**
+
+**Final Model Specification:**
+```r
+model <- glm.nb(Species ~ pH * Biomass, data = dat)
+```
+
+---
+
+## Step 4: Fit Model and Check Diagnostics
+
+Now we'll fit our negative binomial GLM and assess model assumptions using diagnostic plots.
+
+### Model Fitting
+
+```{r model-fitting}
+# Fit the negative binomial GLM
+model_nb <- glm.nb(Species ~ pH * Biomass, data = dat)
+
+# Model summary
+summary(model_nb)
+```
+
+### Model Interpretation
+
+```{r model-interpretation}
+# Extract key model information
+cat("Model coefficients:\n")
+coef(model_nb)
+
+cat("\nTheta (dispersion parameter):", model_nb$theta, "\n")
+cat("AIC:", AIC(model_nb), "\n")
+
+# Check significance of interaction
+cat("\nANOVA table:\n")
+anova(model_nb, test = "Chisq")
+```
+
+### Diagnostic Plots with DHARMa
+
+DHARMa (Diagnostics for HierArchical Regression via Monte-carlo) provides residual diagnostics for GLMs through simulation.
+
+```{r dharma-diagnostics, fig.width=12, fig.height=8}
+# Create DHARMa residuals
+residuals_sim <- simulateResiduals(fittedModel = model_nb, plot = TRUE)
+```
+
+```{r additional-dharma-tests}
+# Test for dispersion
+cat("Dispersion test:\n")
+testDispersion(residuals_sim)
+
+cat("\nUniformity test (Kolmogorov-Smirnov):\n")
+testUniformity(residuals_sim)
+
+cat("\nOutlier test:\n")
+testOutliers(residuals_sim)
+```
+
+### Additional Diagnostic Checks
+
+```{r additional-diagnostics, fig.width=12, fig.height=6}
+# Residuals vs fitted
+par(mfrow = c(1, 2))
+
+# Standard residual plots
+plot(fitted(model_nb), residuals(model_nb, type = "pearson"),
+     xlab = "Fitted Values", ylab = "Pearson Residuals",
+     main = "Residuals vs Fitted")
+abline(h = 0, col = "red", lty = 2)
+
+# Q-Q plot of residuals
+qqnorm(residuals(model_nb, type = "pearson"))
+qqline(residuals(model_nb, type = "pearson"), col = "red")
+
+par(mfrow = c(1, 1))
+```
+
+### Model Comparison (Optional)
+
+```{r model-comparison}
+# Compare with Poisson model to check if NB was necessary
+model_poisson <- glm(Species ~ pH * Biomass, data = dat, family = poisson)
+
+# Compare AIC
+cat("Model comparison:\n")
+cat("Negative Binomial AIC:", AIC(model_nb), "\n")
+cat("Poisson AIC:", AIC(model_poisson), "\n")
+cat("Difference (NB - Poisson):", AIC(model_nb) - AIC(model_poisson), "\n")
+
+# Likelihood ratio test
+lrtest_result <- anova(model_poisson, model_nb, test = "Chisq")
+print(lrtest_result)
+```
+
+### DHARMa Package Information
+
+```{r dharma-info}
+# Display DHARMa vignette information for user reference
+cat("For more information on interpreting DHARMa diagnostics, run:\n")
+cat("vignette('DHARMa')\n\n")
+
+cat("Key DHARMa diagnostic interpretations:\n")
+cat("- QQ plot should show points along diagonal line\n")
+cat("- Residual vs Predicted should show random scatter around horizontal line\n")
+cat("- P-values > 0.05 generally indicate no significant deviation from model assumptions\n")
+cat("- Red areas in plots indicate potential problems\n")
+```
+
+## CHECKPOINT 4
+
+**Model Diagnostics Summary:**
+
+The analysis above provides several key diagnostic checks:
+
+1. **Model Summary**: Coefficient estimates, significance tests, and model fit statistics
+2. **DHARMa Residuals**: Simulation-based residual diagnostics specifically designed for GLMs
+3. **Dispersion Test**: Checks if the negative binomial family appropriately handles dispersion
+4. **Uniformity Test**: Tests if residuals follow expected uniform distribution
+5. **Model Comparison**: Compares negative binomial vs Poisson to validate family choice
+
+**Key Questions for Assessment:**
+
+1. **DHARMa Diagnostics**: Do the QQ plot and residual plots look acceptable (points follow diagonal, random scatter)?
+2. **Dispersion Test**: Does the dispersion test confirm appropriate modeling of variance?
+3. **Model Significance**: Are the predictors (pH, Biomass, interaction) statistically significant?
+4. **Model Comparison**: Was the negative binomial family justified over Poisson?
+
+**Next Steps to Discuss:**
+
+Based on the diagnostic results, we may need to:
+- Accept the current model if diagnostics look good
+- Consider model modifications if issues are detected
+- Discuss biological interpretation of significant effects
+- Consider model simplification if interactions are non-significant
+
+Please review the diagnostic plots and test results, then let me know:
+1. How do the DHARMa diagnostics look?
+2. Are you satisfied with the model performance?
+3. What would you like to focus on for interpretation or model refinement? 
+
+### Step 2: Build model formula
+
+**CHECKPOINT 2** Create a model with the user. 
+
+- Ask the user to confirm their response variable. 
+- Ask the user to confirm their predictor variables. Suggest that the user start with a full model with all **relevant** predictor variables. This may be a subset of all variables in the data frame. 
+- Ask the user to justify the inclusion of each variable on theoretical grounds or a-priori understanding. 
+- Suggest a formula for the full model and ask the user if they want to make any modifications
+
+
+### Step 3: Choose a model family
+
+Think carefully about the data type of the response variable. Consider what model family will be most suitable for the response variable. Document your reasoning for the user. 
+
+**Default choices:** 
+Continuous data positive and negative values: gaussian
+Continuous values >0: gamma
+Positive integers: negative binomial
+Binary: binomial
+Counts out of a maximum number per sample: binomial
+
+**Proportional data:** 
+Proportions or percents: Ask the user if their data can be interpreted as binomial. Often proportional data is measured as counts out of a total. If this is the case, suggest they provide the raw data and use a binomial family. 
+
+**Special cases outside the scope of this analysis** 
+If the response variable falls under the below cases, this GLM falls outside the scope of this conversation: 
+True proportional data
+Continuous positive values including 0
+Time of day or circular response variables
+Ordered or unordered categorical responses. 
+
+**CHECKPOINT 3** 
+if (choice in defaults){
+    Provide suggestion to user and discuss reasoning for the choice
+} else if (choice in Proportional data){
+    Discuss option of modelling data with a binomial
+} else if (choice in special cases){
+    Inform the user that their response variable is beyond the scope of a simple glm. Suggest some follow-up reading and R packages they could investigate. 
+}
+
+### Step 4: Fit the model and check diagnostics 
+
+Fit the model with the appropriate family. Produce diagnostic plots using the `DHARMa` package. Use these functions:
+
+`testDispersion`
+`simulateResiduals(fittedModel = m1, plot = TRUE)`
+
+Run `vignette("DHARMa")` to provide the user more information on assessing diagnostics. 
+
+**CHECKPOINT 4** 
+Print results of diagnostics to the qmd, including figures. Render the qmd. Discuss the results with the user. Suggest next steps. 

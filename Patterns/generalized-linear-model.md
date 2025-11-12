@@ -1,4 +1,4 @@
-NOTE TO USER: MAKE A NEW DOCUMENT stepwise-model-selection.qmd THEN PASTE THIS INTO THAT DOCUMENT AND RUN AGENT MODE ON THAT DOCUMENT. 
+NOTE TO USER: MAKE A NEW DOCUMENT doc.qmd in your root directory. THEN PASTE THIS INTO THAT DOCUMENT AND RUN AGENT MODE ON THAT DOCUMENT. UPDATE THE DATA DESCRIPTION BELOW AS NEEDED
 
 # Choosing a generalized linear model with R
 
@@ -9,11 +9,11 @@ YOU WILL STOP at designated checkpoints. At each checkpoint you will make a deci
 At each checkpoint you should stop, provide relevant figures or tables then ask the user a question so you can jointly make a decision about the next step. 
 
 At each checkpoint that requires new R code run 
-`quarto render doc.qmd`
-then 
-`open doc.html`
+`quarto preview doc.qmd`
 
-So the user can see the results and make a decision at each checkpoint. 
+So the user can see the results and make a decisxion at each checkpoint. 
+Note `doc.qmd` needs to be in the root directory.
+
 
 If the user identifieds errors in your interpretation at any point: ask the user to stop the conversation, update their meta-data and model description and begin a new thread from scratch. 
 
@@ -24,15 +24,13 @@ We will use the R program with the `glm` function and `MASS::glm.nb` if a negati
 ## Data 
 
 Use this data: 
-`dat <- read_csv("Data/ZooBiomass.csv")`
+`dat <- read_csv("Data/grasses.csv")`
 
-Marine zooplankton biomass study comparing mining impact sites with 6 variables and 200 observations. The variables are: 
-- **Region** (categorical): Impact assessment (Mine vs Reference sites)
-- **Zone** (categorical): Distance from shore (Inshore vs Offshore)  
-- **TimeOfDay** (categorical): Sampling time (Day vs Night)
-- **Depth** (numeric): Sampling depth in meters
-- **Temperature** (numeric): Water temperature in degrees Celsius
-- **Biomass** (numeric): Zooplankton biomass measurement (likely mg/m³ or similar units)
+Experimental plant ecology dataset examining grass species response to soil conditions with 3 variables and 90 observations:
+- **pH** (categorical): Soil acidity level (low, mid, high) - experimental treatment
+- **Biomass** (numeric): Plant biomass measurement (likely dry weight in grams)
+- **Species** (integer): Number of grass species present in experimental plot
+
 
 ## Steps  
 
@@ -103,4 +101,4 @@ Fit the model with the appropriate family. Produce diagnostic plots using the `D
 Run `vignette("DHARMa")` to provide the user more information on assessing diagnostics. 
 
 **CHECKPOINT 4** 
-Print results of diagnostics to the qmd, including figures. Render the qmd. Discuss the results with the user. Suggest next steps. 
+Print results of diagnostics to the qmd, including figures. Preview the qmd. Discuss the results of the diagnostics with the user. Suggest next steps. 
