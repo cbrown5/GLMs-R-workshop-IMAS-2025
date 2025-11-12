@@ -16,10 +16,10 @@ So I can see the results and make a decision at each checkpoint.
 ## Data and modelling approach
 
 Use this data: 
-`dat <- read_csv("Data/ZooBiomass.csv")`
+`dat <- read_csv("Data/fish-coral-cover-sites.csv")`
 
 Start with this model 
-`log10(Biomass) ~ Depth * Zone * Region`
+`cb_cover ~ dist_to_logging_km * flow` to test how coral cover changes with distance to logging ponds (pollution source) and tidal flow strength.
 
 Fit it with `lm()` function. 
 

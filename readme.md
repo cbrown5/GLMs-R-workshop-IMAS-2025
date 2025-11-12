@@ -2,11 +2,25 @@
 
 2025-11-12
 
-Prof Anthony Richardson, A/Prof Chris Brown
+A/Prof Chris Brown, Prof Anthony Richardson
 
-Notes written during the workshop
+Notes and prompting patterns written during the Centre for Marine Socioecology R workshop 2025, in Hobart, Australia. 
 
-Notes available at: https://mathmarecol.github.io/RWorkshop/UTas_day2_linearModelling.html
+## How to use 
+
+Prompting patterns used during a workshop to guide LLM coding assistants through statistical modelling. Patterns are in the `Patterns/` directory. You can use these with any AI assistant. 
+For example, to use with Github Copilot in VSCode:
+1. Open VSCode in this project directory
+2. Open a .qmd new file in the root directory of the project
+3. Read the patterns first. 
+4. Copy and paste the pattern you want to use into the new file
+5. Update pattern text to point to your data/files as needed
+6. Start Github Copilot in "Agent mode" 
+7. Run the agent on the document that has the pattern (or just paste the pattern into the chat window).
+8. Work through the pattern interactively, following the instructions in the pattern.
+
+Common issue is that the Agent is unable to properly render quarto documents with terminal command. The agent may get stuck in a loop trying to make the quarto render. Make sure you have the quarto extension installed in VSCode. its also recommended to keep the .qmd in the root directory because then it syncs with data files more easily. If you have issues, just render it manually rather than accepting the Agent's suggestion to run terminal code to render. 
+
 
 ## Directories and files
 
@@ -26,13 +40,7 @@ AGENTS.md                      # Instructions for AI agents
 Patterns/                      # Prompts used with LLM assistants
 Data/                          # Data directory containing CSV files
 ├── ConsistencyData.csv        # Consistency dataset
-├── CopepodData.csv           # Copepod dataset
-├── grasses.csv               # Grasses dataset
-├── shark1.csv                # Shark dataset
-└── ZooBiomass.csv            # Zooplankton biomass dataset
-Scripts/                       # R scripts directory
-├── linear-model.R            # Linear modeling script
-└── model-selection.R         # Model selection script
+├── fish-coral-cover-sites.csv # Fish dataset
 ```
 
 ## File Descriptions
@@ -46,7 +54,7 @@ Project documentation setup pattern that creates README files. Documents directo
 Interactive linear regression analysis pattern that creates documentation for a simple linear model. Generates a Quarto document with formatted summary tables using `kable`, predictive plots using `marginaleffects` package, and statistical interpretation for non-experts. Includes model verification/diagnostic plots, suggestions for model improvements (transformations, GLM alternatives), outlier and leverage point analysis, and sensitivity analyses.
 
 #### stepwise-model-selection.md
-Interactive backwards stepwise model simplification workflow using ZooBiomass data with log10(Biomass) response. Starts with full 3-way interaction model (`Depth * Zone * Region`) and uses interactive checkpoint system for joint human and agent decision-making. Includes model diagnostics at each step, renders documents for review between steps, systematic term removal with F-ratio testing, and final predictive plots using `marginaleffects`.
+Interactive backwards stepwise model simplification workflow . Starts with full model  and uses interactive checkpoint system for joint human and agent decision-making. Includes model diagnostics at each step, renders documents for review between steps, systematic term removal with F-ratio testing, and final predictive plots using `marginaleffects`.
 
 
 ### Data Files
@@ -59,43 +67,65 @@ Marine biological studies consistency meta-analysis dataset with 5 variables and
 - **Latitude** (categorical): Climate zones (Temperate, Subtropical, Tropical, Polar)
 - **Obstype** (categorical): Type of biological observation (Distribution, Abundance, Phenology, Community change, Demography, Calcification)
 
-#### CopepodData.csv
-Marine copepod monitoring data from Australian National Reference Stations with 211 variables and multiple years of sampling:
-- **Project/StationName/StationCode/Coordinates**: Station metadata (NRS Darwin, NRS Yongala)
-- **TripCode**: Unique sampling trip identifier
-- **SampleTime_UTC/Local**: Temporal sampling information
-- **Year/Month/Day/Time**: Date-time components
-- **Depth** (numeric): Sampling depth in meters
-- **Environmental variables**: SST (Sea Surface Temperature), Chla (Chlorophyll-a), Salinity, SOI (Southern Oscillation Index)
-- **Biomass/AshFreeBiomass** (numeric): Total copepod biomass measurements  
-- **Species abundance columns** (numeric): Count data for ~200 copepod species (e.g., Acartia danae, Calanus australis)
+Recommended to use for binomial GLM exercises e.g. `Consistency ~ Taxa * Latitude * Obstype`
 
-#### grasses.csv  
-Experimental plant ecology dataset examining grass species response to soil conditions with 3 variables and 90 observations:
-- **pH** (categorical): Soil acidity level (low, mid, high) - experimental treatment
-- **Biomass** (numeric): Plant biomass measurement (likely dry weight in grams)
-- **Species** (integer): Number of grass species present in experimental plot
+Bibtex references for attribution
 
-#### shark1.csv
-Shark sighting/encounter time series data with 5 variables and 724 observations:
-- **Sightings** (integer): Number of shark sightings recorded per observation period
-- **Year** (integer): Year of observation (2005-2011) 
-- **Month** (integer): Month of observation (1-12)
-- **DayOfYr** (integer): Julian day of year (1-365)
-- **DayFromStart** (integer): Sequential day number from start of study period
+```
+@article{poloczanska2013global,
+  title={Global imprint of climate change on marine life},
+  author={Poloczanska, Elvira S and Brown, Christopher J and Sydeman, William J and Kiessling, Wolfgang and Schoeman, David S and Moore, Pippa J and Brander, Keith and Bruno, John F and Buckley, Lauren B and Burrows, Michael T and others},
+  journal={Nature climate change},
+  volume={3},
+  number={10},
+  pages={919--925},
+  year={2013},
+  publisher={Nature Publishing Group UK London}
+}
+```
 
-#### ZooBiomass.csv
-Marine zooplankton biomass study comparing mining impact sites with 6 variables and 200 observations:
-- **Region** (categorical): Impact assessment (Mine vs Reference sites)
-- **Zone** (categorical): Distance from shore (Inshore vs Offshore)  
-- **TimeOfDay** (categorical): Sampling time (Day vs Night)
-- **Depth** (numeric): Sampling depth in meters
-- **Temperature** (numeric): Water temperature in degrees Celsius
-- **Biomass** (numeric): Zooplankton biomass measurement (likely mg/m³ or similar units)
+#### fish-coral-cover-sites.csv
 
-**Scripts:**
-- `linear-model.R` - Contains linear modeling examples and exercises
-- `model-selection.R` - Contains model selection techniques and comparisons 
+Fish and coral cover dataset from Solomon Islands with 13 variables and observations from multiple reef sites:
+- **site** (character): Unique site identifiers for joining with other datasets
+- **reef.ID** (character): Unique reef identifiers
+- **pres.topa** (integer): Count of Topa fish (local name for Bolbometopon muricatum - bumphead parrotfish)
+- **pres.habili** (integer): Count of Habili fish (local name for Cheilinus undulatus - humphead wrasse)
+- **secchi** (numeric): Horizontal secchi depth in meters - higher values indicate clearer, less turbid water
+- **flow** (factor): Tidal flow strength at site ("Strong" or "Mild")
+- **logged** (factor): Logging status of region ("Logged" or "Not logged")
+- **coordx** (numeric): X coordinate in UTM zone 57S projection
+- **coordy** (numeric): Y coordinate in UTM zone 57S projection
+- **cb_cover** (integer): Number of point-intercept transect (PIT) points with branching coral cover
+- **soft_cover** (integer): Number of PIT points with soft coral cover
+- **n_pts** (integer): Total number of PIT points at site (denominator for calculating percent cover)
+- **dist_to_logging_km** (numeric): Linear distance to nearest logging pond in kilometers
 
+Recommended for linear modeling exercises examining relationships between fish abundance, coral cover, water quality (secchi depth), and human impacts (logging distance).
 
+Bibtex references for attribution
+
+```
+@article{brown2018estimating,
+  title={Estimating the footprint of pollution on coral reefs with models of species turnover},
+  author={Brown, Christopher J and Hamilton, Richard J},
+  journal={Conservation Biology},
+  volume={32},
+  number={4},
+  pages={949--958},
+  year={2018},
+  publisher={Wiley Online Library}
+}
+
+@article{hamilton2017logging,
+  title={Logging degrades nursery habitat for an iconic coral reef fish},
+  author={Hamilton, Richard J and Almany, Glenn R and Brown, Christopher J and Pita, John and Peterson, Nathan A and Choat, J Howard},
+  journal={Biological Conservation},
+  volume={210},
+  pages={273--280},
+  year={2017},
+  publisher={Elsevier}
+}
+
+```
 

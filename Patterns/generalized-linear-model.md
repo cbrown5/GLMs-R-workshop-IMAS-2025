@@ -14,7 +14,6 @@ At each checkpoint that requires new R code run
 So the user can see the results and make a decisxion at each checkpoint. 
 Note `doc.qmd` needs to be in the root directory.
 
-
 If the user identifieds errors in your interpretation at any point: ask the user to stop the conversation, update their meta-data and model description and begin a new thread from scratch. 
 
 ## Tech context 
@@ -24,12 +23,14 @@ We will use the R program with the `glm` function and `MASS::glm.nb` if a negati
 ## Data 
 
 Use this data: 
-`dat <- read_csv("Data/grasses.csv")`
+`dat <- read_csv("Data/ConsistencyData.csv")`
 
-Experimental plant ecology dataset examining grass species response to soil conditions with 3 variables and 90 observations:
-- **pH** (categorical): Soil acidity level (low, mid, high) - experimental treatment
-- **Biomass** (numeric): Plant biomass measurement (likely dry weight in grams)
-- **Species** (integer): Number of grass species present in experimental plot
+Marine biological studies consistency meta-analysis dataset with 5 variables and 1,701 observations:
+- **Index** (integer): Unique observation identifier
+- **Consistency** (binary): 0 = inconsistent with expected climate impacts, 1 = consistent with expected climate impacts
+- **Taxa** (categorical): Marine organism groups (Bony fish, Non-bony fish, Benthic crustacea, Benthic algae, Benthic molluscs, Zooplankton, Seabirds, Phytoplankton, Larval bony fish, Benthic cnidarians)  
+- **Latitude** (categorical): Climate zones (Temperate, Subtropical, Tropical, Polar)
+- **Obstype** (categorical): Type of biological observation (Distribution, Abundance, Phenology, Community change, Demography, Calcification)t
 
 
 ## Steps  
@@ -97,6 +98,8 @@ Fit the model with the appropriate family. Produce diagnostic plots using the `D
 
 `testDispersion`
 `simulateResiduals(fittedModel = m1, plot = TRUE)`
+
+Provide interpretation on the results of the diagnostics, including the dispersion and potential for outliers. Note to the user that significance tests of distribution appropriatness are very sensitive to deviations from assumptions, so minor deviations that are significant are unlikely to be practically important. 
 
 Run `vignette("DHARMa")` to provide the user more information on assessing diagnostics. 
 
