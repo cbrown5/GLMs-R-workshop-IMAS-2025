@@ -1,0 +1,226 @@
+---
+title: "Backwards Stepwise Model Selection with F Ratios"
+author: "R Workshop IMAS 2025"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    theme: default
+    code-fold: show
+    fig-width: 8
+    fig-height: 6
+---
+
+# Introduction
+
+This document demonstrates backwards stepwise model selection using F ratios to simplify a complex model. We'll work interactively, making decisions at each checkpoint based on model diagnostics and statistical tests.
+
+## Data and Modelling Approach
+
+We will use zooplankton biomass data and start with a full factorial model including all main effects and interactions.
+
+**Starting model:** `log10(Biomass) ~ Depth * Zone * Region`
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(broom)
+library(car)
+library(performance)
+library(marginaleffects)
+
+# Set ggplot theme
+theme_set(theme_classic())
+```
+
+```{r load-data}
+# Load the data
+dat <- read_csv("../Data/ZooBiomass.csv")
+
+# Examine the structure
+glimpse(dat)
+```
+
+```{r data-summary}
+# Summary of key variables
+summary(dat[c("Region", "Zone", "Depth", "Biomass")])
+
+# Check for any zero or negative biomass values (important for log transformation)
+cat("Range of Biomass values:", range(dat$Biomass), "\n")
+cat("Any zero or negative values?", any(dat$Biomass <= 0), "\n")
+```
+
+# Step 1: Fit the Full Model and Check Diagnostics
+
+```{r full-model}
+# Fit the full model with 3-way interaction
+full_model <- lm(log10(Biomass) ~ Depth * Zone * Region, data = dat)
+
+# Model summary
+summary(full_model)
+```
+
+```{r anova-table}
+# ANOVA table
+anova(full_model)
+```
+
+## Model Diagnostics
+
+```{r diagnostic-plots, fig.height=8}
+# Create diagnostic plots
+par(mfrow = c(2, 2))
+plot(full_model)
+par(mfrow = c(1, 1))
+```
+
+```{r additional-diagnostics}
+# Additional diagnostic tests
+cat("Shapiro-Wilk test for normality of residuals:\n")
+shapiro.test(residuals(full_model))
+
+cat("\nBreusch-Pagan test for homoscedasticity:\n")
+bptest <- car::ncvTest(full_model)
+print(bptest)
+
+# Residuals vs fitted with smoother
+library(ggplot2)
+diagnostic_df <- data.frame(
+  fitted = fitted(full_model),
+  residuals = residuals(full_model),
+  standardized_residuals = rstandard(full_model)
+)
+
+ggplot(diagnostic_df, aes(x = fitted, y = residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE, color = "red") +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Residuals vs Fitted Values",
+    x = "Fitted Values",
+    y = "Residuals"
+  ) +
+  theme_classic()
+```
+
+```{r qq-plot}
+# Q-Q plot with ggplot
+ggplot(diagnostic_df, aes(sample = standardized_residuals)) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  labs(
+    title = "Q-Q Plot of Standardized Residuals",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_classic()
+```
+
+```{r model-performance}
+# Model performance metrics
+check_model(full_model, check = c("normality", "homogeneity"))
+```
+
+## **CHECKPOINT 1**: Model Diagnostics Assessment
+
+Based on the diagnostic plots and tests above, we need to evaluate:
+
+1. **Normality**: Do the residuals follow a normal distribution?
+2. **Homoscedasticity**: Is the variance constant across fitted values?
+3. **Model Structure**: Is the log10 transformation appropriate, or should we consider a GLM approach?
+
+### Questions for Decision:
+- Are you satisfied with the current model structure and log10 transformation?
+- Do we need to consider alternative approaches (e.g., GLM with Gamma family)?
+- Should we proceed with this model structure for stepwise selection?
+
+**Please review the diagnostics above and confirm whether to proceed with the current model structure or make adjustments.**
+
+---
+
+# Step 2: Test the 3-Way Interaction
+
+Now we begin backwards stepwise model selection by testing whether we can remove the highest-order term (the 3-way interaction: `Depth:Zone:Region`).
+
+```{r step2-models}
+# Current full model (with 3-way interaction)
+full_model <- lm(log10(Biomass) ~ Depth * Zone * Region, data = dat)
+
+# Reduced model (without 3-way interaction)
+reduced_model <- lm(log10(Biomass) ~ Depth + Zone + Region + 
+                    Depth:Zone + Depth:Region + Zone:Region, data = dat)
+
+# Alternative way to fit the same reduced model
+# reduced_model <- lm(log10(Biomass) ~ (Depth + Zone + Region)^2, data = dat)
+```
+
+```{r step2-comparison}
+# Compare the models using F-test
+f_test <- anova(reduced_model, full_model)
+print(f_test)
+
+cat("\n=== Model Comparison Summary ===\n")
+cat("Full model AIC:", AIC(full_model), "\n")
+cat("Reduced model AIC:", AIC(reduced_model), "\n")
+cat("AIC difference (reduced - full):", AIC(reduced_model) - AIC(full_model), "\n")
+cat("\nF-test p-value for 3-way interaction:", f_test$`Pr(>F)`[2], "\n")
+```
+
+```{r step2-effect-sizes}
+# Look at the 3-way interaction term in the full model
+cat("=== 3-Way Interaction Coefficient ===\n")
+full_summary <- summary(full_model)
+interaction_coef <- full_summary$coefficients["Depth:ZoneOffshore:RegionReference", ]
+print(interaction_coef)
+
+cat("\n=== Effect Size Context ===\n")
+cat("3-way interaction coefficient:", interaction_coef[1], "\n")
+cat("Standard error:", interaction_coef[2], "\n")
+cat("t-value:", interaction_coef[3], "\n")
+cat("p-value:", interaction_coef[4], "\n")
+```
+
+```{r step2-anova-comparison}
+# Show ANOVA tables for both models
+cat("=== Full Model ANOVA ===\n")
+print(anova(full_model))
+
+cat("\n=== Reduced Model ANOVA ===\n")
+print(anova(reduced_model))
+```
+
+```{r step2-r-squared}
+# Compare R-squared values
+full_r2 <- summary(full_model)$r.squared
+reduced_r2 <- summary(reduced_model)$r.squared
+adj_full_r2 <- summary(full_model)$adj.r.squared
+adj_reduced_r2 <- summary(reduced_model)$adj.r.squared
+
+cat("=== Model Fit Comparison ===\n")
+cat("Full model R²:", round(full_r2, 4), "\n")
+cat("Reduced model R²:", round(reduced_r2, 4), "\n")
+cat("R² difference:", round(full_r2 - reduced_r2, 4), "\n")
+cat("\nFull model Adjusted R²:", round(adj_full_r2, 4), "\n")
+cat("Reduced model Adjusted R²:", round(adj_reduced_r2, 4), "\n")
+cat("Adjusted R² difference:", round(adj_full_r2 - adj_reduced_r2, 4), "\n")
+```
+
+## **CHECKPOINT 2**: Decision on 3-Way Interaction
+
+Based on the analysis above, we need to decide whether to remove the 3-way interaction (`Depth:Zone:Region`).
+
+### Decision Criteria:
+1. **F-test p-value**: Is p > 0.05? (suggests we can remove the term)
+2. **AIC comparison**: Does the reduced model have lower AIC? (suggests better model)
+3. **Effect size**: Is the coefficient practically meaningful?
+4. **R² change**: Is the reduction in explained variance acceptable?
+
+### Interpretation Guide:
+- **If F-test p > 0.05**: The 3-way interaction is not statistically significant → **Remove it**
+- **If F-test p ≤ 0.05**: The 3-way interaction is statistically significant → **Keep it**
+- **AIC difference**: Lower AIC indicates better model (accounting for complexity)
+- **R² change**: Small change suggests the interaction doesn't explain much variance
+
+**Please review the results above and decide: Should we remove or keep the 3-way interaction?**
+

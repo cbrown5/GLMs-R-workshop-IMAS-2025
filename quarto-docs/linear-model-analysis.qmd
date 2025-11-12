@@ -1,0 +1,304 @@
+---
+title: "Linear Regression Analysis: Zooplankton Biomass vs Depth"
+author: "R Workshop IMAS 2025"
+date: "`r Sys.Date()`"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    theme: default
+    code-fold: show
+    fig-width: 8
+    fig-height: 6
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Introduction
+
+This document presents a linear regression analysis examining the relationship between zooplankton biomass and water depth. We'll explore how biomass changes with depth using statistical modeling and visualization techniques.
+
+# Data Loading and Exploration
+
+```{r load-packages}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(marginaleffects)
+library(broom)
+library(ggplot2)
+```
+
+```{r load-data}
+# Load the zooplankton biomass data
+dat <- read_csv("../Data/ZooBiomass.csv")
+
+# Display basic information about the dataset
+cat("Dataset dimensions:", nrow(dat), "rows,", ncol(dat), "columns\n")
+head(dat) %>% 
+  kable(caption = "First 6 rows of the zooplankton biomass dataset") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+```{r data-summary}
+# Summary statistics
+dat %>%
+  select(Depth, Biomass) %>%
+  summary() %>%
+  kable(caption = "Summary statistics for key variables") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+# Linear Regression Model
+
+## Model Fitting
+
+We fit a simple linear regression model to examine how zooplankton biomass changes with depth:
+
+```{r fit-model}
+# Fit linear model: Biomass as a function of Depth
+m1 <- lm(Biomass ~ Depth, data = dat)
+```
+
+## Model Summary Table
+
+```{r model-table}
+# Create a nicely formatted summary table
+model_summary <- tidy(m1, conf.int = TRUE)
+model_summary %>%
+  mutate(
+    term = case_when(
+      term == "(Intercept)" ~ "Intercept",
+      term == "Depth" ~ "Depth",
+      TRUE ~ term
+    ),
+    estimate = round(estimate, 4),
+    std.error = round(std.error, 4),
+    statistic = round(statistic, 2),
+    p.value = case_when(
+      p.value < 0.001 ~ "<0.001",
+      TRUE ~ as.character(round(p.value, 3))
+    ),
+    conf.low = round(conf.low, 4),
+    conf.high = round(conf.high, 4)
+  ) %>%
+  kable(
+    col.names = c("Term", "Coefficient", "Std. Error", "t-statistic", "p-value", "95% CI Lower", "95% CI Upper"),
+    caption = "Linear regression model summary: Biomass ~ Depth"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  add_header_above(c(" " = 5, "Confidence Interval" = 2))
+```
+
+```{r model-stats}
+# Additional model statistics
+model_glance <- glance(m1)
+model_stats <- data.frame(
+  Statistic = c("R-squared", "Adjusted R-squared", "F-statistic", "p-value (model)", "AIC", "Residual Std. Error"),
+  Value = c(
+    round(model_glance$r.squared, 4),
+    round(model_glance$adj.r.squared, 4),
+    round(model_glance$statistic, 2),
+    ifelse(model_glance$p.value < 0.001, "<0.001", round(model_glance$p.value, 4)),
+    round(model_glance$AIC, 2),
+    round(model_glance$sigma, 4)
+  )
+)
+
+model_stats %>%
+  kable(caption = "Model fit statistics") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## Understanding the Statistical Results (For Beginners)
+
+**What does this table tell us?**
+
+The summary table above shows the results of our linear regression analysis. Here's what each component means:
+
+1. **Intercept (β₀)**: This is the predicted biomass when depth = 0 meters. In our case, it's the estimated biomass at the water surface.
+
+2. **Depth Coefficient (β₁)**: This tells us how much biomass changes for each 1-meter increase in depth. A negative value would indicate biomass decreases with depth, while a positive value indicates it increases.
+
+3. **Standard Error**: This measures the uncertainty in our coefficient estimates. Smaller values indicate more precise estimates.
+
+4. **t-statistic**: This tests whether each coefficient is significantly different from zero. Larger absolute values (typically >2) suggest statistical significance.
+
+5. **p-value**: The probability of getting these results by chance alone. Values <0.05 are typically considered statistically significant.
+
+6. **95% Confidence Interval**: The range within which we're 95% confident the true coefficient lies.
+
+7. **R-squared**: The proportion of variance in biomass explained by depth (ranges from 0 to 1, where 1 = perfect fit).
+
+# Model Interpretation
+
+```{r interpret-results}
+# Extract key statistics for interpretation
+intercept <- round(coef(m1)[1], 4)
+slope <- round(coef(m1)[2], 4)
+r_squared <- round(summary(m1)$r.squared, 4)
+p_value <- round(summary(m1)$coefficients[2, 4], 4)
+
+cat("Key findings:\n")
+cat("- Intercept:", intercept, "\n")
+cat("- Slope (depth effect):", slope, "\n")
+cat("- R-squared:", r_squared, "\n")
+cat("- P-value for depth:", ifelse(p_value < 0.001, "<0.001", p_value), "\n")
+```
+
+## Biological Interpretation
+
+Based on our analysis:
+
+- **Baseline biomass**: The estimated zooplankton biomass at the surface (depth = 0m) is `r round(coef(m1)[1], 3)` units.
+
+- **Depth effect**: For every 1-meter increase in depth, zooplankton biomass `r ifelse(coef(m1)[2] > 0, "increases", "decreases")` by `r abs(round(coef(m1)[2], 4))` units on average.
+
+- **Model fit**: Depth explains `r round(summary(m1)$r.squared * 100, 1)`% of the variation in zooplankton biomass.
+
+- **Statistical significance**: The relationship between depth and biomass is `r ifelse(summary(m1)$coefficients[2, 4] < 0.05, "statistically significant", "not statistically significant")` (p `r ifelse(summary(m1)$coefficients[2, 4] < 0.001, "< 0.001", paste("=", round(summary(m1)$coefficients[2, 4], 3)))`).
+
+# Predicted Values and Marginal Effects
+
+```{r marginal-effects}
+# Create predictions using marginaleffects
+predictions <- predictions(m1, newdata = datagrid(Depth = seq(min(dat$Depth), max(dat$Depth), length.out = 100)))
+
+# Plot predicted biomass against depth
+ggplot(dat, aes(x = Depth, y = Biomass)) +
+  geom_point(alpha = 0.6, color = "steelblue") +
+  geom_line(data = predictions, aes(x = Depth, y = estimate), color = "red", linewidth = 1) +
+  geom_ribbon(data = predictions, aes(x = Depth, y = estimate, ymin = conf.low, ymax = conf.high), 
+              alpha = 0.2, fill = "red") +
+  labs(
+    title = "Predicted Zooplankton Biomass vs Depth",
+    subtitle = "Red line shows model predictions with 95% confidence interval",
+    x = "Depth (m)",
+    y = "Biomass",
+    caption = "Data points in blue, model predictions in red"
+  ) +
+  theme_classic() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10)
+  )
+```
+
+# Model Verification and Diagnostic Plots
+
+Model diagnostics help us assess whether our linear regression assumptions are met:
+
+## Residuals vs Fitted Values
+
+```{r residuals-fitted}
+# Extract model diagnostics
+model_diag <- augment(m1)
+
+# Residuals vs Fitted plot
+ggplot(model_diag, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  geom_smooth(se = FALSE, color = "blue") +
+  labs(
+    title = "Residuals vs Fitted Values",
+    x = "Fitted Values",
+    y = "Residuals"
+  ) +
+  theme_classic()
+```
+
+## Normal Q-Q Plot
+
+```{r qq-plot}
+# Q-Q plot for normality of residuals
+ggplot(model_diag, aes(sample = .resid)) +
+  stat_qq() +
+  stat_qq_line(color = "red") +
+  labs(
+    title = "Normal Q-Q Plot",
+    x = "Theoretical Quantiles",
+    y = "Sample Quantiles"
+  ) +
+  theme_classic()
+```
+
+## Scale-Location Plot
+
+```{r scale-location}
+# Scale-Location plot
+ggplot(model_diag, aes(x = .fitted, y = sqrt(abs(.resid)))) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(se = FALSE, color = "red") +
+  labs(
+    title = "Scale-Location Plot",
+    x = "Fitted Values",
+    y = "√|Residuals|"
+  ) +
+  theme_classic()
+```
+
+## Cook's Distance
+
+```{r cooks-distance}
+# Cook's distance plot
+ggplot(model_diag, aes(x = seq_along(.cooksd), y = .cooksd)) +
+  geom_point() +
+  geom_hline(yintercept = 4/nrow(dat), linetype = "dashed", color = "red") +
+  labs(
+    title = "Cook's Distance",
+    x = "Observation Number",
+    y = "Cook's Distance"
+  ) +
+  theme_classic()
+```
+
+## Interpretation of Diagnostic Plots
+
+**1. Residuals vs Fitted Values:**
+- **What to look for**: Points should be randomly scattered around zero with no clear patterns
+- **Our results**: `r if(max(abs(model_diag$.resid)) < 2) "The residuals appear randomly scattered, suggesting the linear relationship assumption is reasonable" else "There may be some pattern in the residuals that suggests non-linearity"`
+
+**2. Normal Q-Q Plot:**
+- **What to look for**: Points should fall along the diagonal line
+- **Our results**: `r if(shapiro.test(model_diag$.resid)$p.value > 0.05) "The residuals appear approximately normally distributed" else "There may be some deviation from normality in the residuals"`
+
+**3. Scale-Location Plot:**
+- **What to look for**: Points should be randomly scattered with a horizontal line
+- **Our results**: This plot helps assess whether the variance of residuals is constant (homoscedasticity)
+
+**4. Cook's Distance:**
+- **What to look for**: Values above 4/n (red line) indicate potential influential observations
+- **Our results**: `r if(max(model_diag$.cooksd) > 4/nrow(dat)) "Some observations may be influential" else "No highly influential observations detected"`
+
+# Conclusions
+
+## Summary
+
+This analysis examined the relationship between zooplankton biomass and water depth using linear regression. The key findings are:
+
+1. **Model Performance**: The model explains `r round(summary(m1)$r.squared * 100, 1)`% of the variation in biomass
+2. **Direction of Effect**: Biomass `r ifelse(coef(m1)[2] > 0, "increases", "decreases")` with depth
+3. **Statistical Significance**: The relationship is `r ifelse(summary(m1)$coefficients[2, 4] < 0.05, "statistically significant", "not statistically significant")`
+4. **Model Assumptions**: The diagnostic plots suggest `r if(max(abs(model_diag$.resid)) < 2 && shapiro.test(model_diag$.resid)$p.value > 0.05) "the model assumptions are reasonably well met" else "there may be some violations of model assumptions that warrant further investigation"`
+
+## Ecological Implications
+
+The `r ifelse(coef(m1)[2] > 0, "positive", "negative")` relationship between depth and zooplankton biomass could be explained by several factors:
+
+- **Light availability**: Affecting primary production and food availability
+- **Temperature gradients**: Influencing metabolic rates and species distribution  
+- **Oxygen levels**: Varying with depth and affecting organism survival
+- **Predation pressure**: Potentially different at various depths
+- **Nutrient distribution**: Affecting food web dynamics
+
+## Recommendations for Further Analysis
+
+1. Consider adding other environmental variables (temperature, oxygen, etc.)
+2. Explore non-linear relationships if diagnostic plots suggest patterns
+3. Investigate potential interactions between depth and other factors
+4. Consider temporal and spatial effects in the analysis

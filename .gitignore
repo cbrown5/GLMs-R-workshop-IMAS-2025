@@ -2,3 +2,18 @@
 .DS_Store
 .Rhistory
 .Rdata
+
+# Quarto output files (keep .qmd source files)
+*.html
+*_cache/
+
+*_files/
+.quarto/
+bootstrap/
+node_modules/
+
+quarto-docs/*.html
+quarto-docs/*_files/
+quarto-docs/*_cache/
+quarto-docs/libs/
+.Rproj.user
